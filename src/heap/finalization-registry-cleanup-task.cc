@@ -65,8 +65,17 @@ void FinalizationRegistryCleanupTask::RunInternal() {
 
   // Exceptions are reported via the message handler. This is ensured by the
   // verbose TryCatch.
-  InvokeFinalizationRegistryCleanupFromTask(context, finalization_registry,
-                                            callback);
+  //
+  // The spec says iteration of the cleared cells is interrupted if the callback
+  // throws an exception. This is observable as microtasks run in between
+  // cleanup tasks. To avoid being clever on rescheduling tasks, drain the
+  // cleared cells list in a single task.
+  //
+  // TODO(syg): Implement a budget for finalizers.
+  do {
+    InvokeFinalizationRegistryCleanupFromTask(context, finalization_registry,
+                                              callback);
+  } while (finalization_registry->NeedsCleanup());
 
   // Repost if there are remaining dirty FinalizationRegistries.
   heap_->set_is_finalization_registry_cleanup_task_posted(false);
